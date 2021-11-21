@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -46,7 +49,38 @@ func init() {
 	db = sess.DB(dbName)
 }
 
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	err := rnd.Template(w, http.StatusOK, []string{"template/index.html"}, nil)
+	checkErr(err)
+}
+
+func getTodo(w http.ResponseWriter, r *http.Request) {
+	todos := []todoModel{}
+
+	if err := db.C(collectionName).Find(bson.M{}).All(&todos); err != nil {
+		rnd.JSON(w, http.StatusProcessing, renderer.M{
+			"message": "Failed to get todos",
+			"error":   err,
+		})
+		return
+	}
+	todoList := []todo{}
+}
+
+func todoHandler() http.Handler {
+	rg := chi.NewRouter()
+	rg.Group(func(r chi.Router) {
+		r.Get("/", getTodo)
+		r.Post("/", addTodo)
+		r.Put("/{id}", updateTodo)
+		r.Delete("/{id}", deleteTodo)
+	})
+	return rg
+}
+
 func main() {
+	stopChan := make(chan os.Signal)
+	signal.Notify(stopChan, os.Interrupt)
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Get("/", homeHandler)
@@ -65,16 +99,12 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-}
 
-func todoHandler() http.Handler {
-	rg := chi.NewRouter()
-	rg.Group(func(r chi.Router) {
-		r.Get("/", getTodo)
-		r.Post("/", addTodo)
-		r.Put("/{id}", updateTodo)
-		r.Delete("/{id}", deleteTodo)
-	})
+	<-stopChan
+	log.Println("Shutting down server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	srv.Shutdown(ctx)
+	defer cancel()
 }
 
 func checkErr(err error) {
