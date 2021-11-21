@@ -126,8 +126,8 @@ func addTodo(w http.ResponseWriter, r *http.Request) {
 		"message": "todo created successfully",
 		"todo_id": tm.ID.Hex(),
 	})
-
 }
+
 func updateTodo(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
 
