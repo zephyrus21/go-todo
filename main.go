@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -65,6 +66,18 @@ func getTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	todoList := []todo{}
+
+	for _, t := range todos {
+		todoList = append(todoList, todo{
+			ID:        t.ID,
+			Title:     t.Title,
+			Completed: t.Completed,
+			CreatedAt: t.createdAt,
+		})
+	}
+	rnd.JSON(w, http.StatusOK, renderer.M{
+		"data": todoList,
+	})
 }
 
 func todoHandler() http.Handler {
@@ -72,10 +85,47 @@ func todoHandler() http.Handler {
 	rg.Group(func(r chi.Router) {
 		r.Get("/", getTodo)
 		r.Post("/", addTodo)
-		r.Put("/{id}", updateTodo)
-		r.Delete("/{id}", deleteTodo)
+		// r.Put("/{id}", updateTodo)
+		// r.Delete("/{id}", deleteTodo)
 	})
 	return rg
+}
+
+func addTodo(w http.ResponseWriter, r *http.Request) {
+	var t todo
+
+	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		rnd.JSON(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if t.Title == "" {
+		rnd.JSON(w, http.StatusBadRequest, renderer.M{
+			"message": "Title is required",
+		})
+		return
+	}
+
+	tm := todoModel{
+		ID:        bson.NewObjectId(),
+		Title:     t.Title,
+		Completed: false,
+		createdAt: time.Now(),
+	}
+
+	if err := db.C(collectionName).Insert(&tm); err != nil {
+		rnd.JSON(w, http.StatusProcessing, renderer.M{
+			"message": "Failed to add todo",
+			"error":   err,
+		})
+		return
+	}
+
+	rnd.JSON(w, http.StatusOK, renderer.M{
+		"message": "todo created successfully",
+		"todo_id": tm.ID.Hex(),
+	})
+
 }
 
 func main() {
@@ -84,7 +134,7 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Get("/", homeHandler)
-	r.Get("/todo", todoHandler)
+	r.Mount("/todo", todoHandler())
 
 	srv := &http.Server{
 		Addr:         port,
