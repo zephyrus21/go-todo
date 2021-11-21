@@ -55,6 +55,16 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	err := rnd.Template(w, http.StatusOK, []string{"template/index.html"}, nil)
 	checkErr(err)
 }
+func todoHandler() http.Handler {
+	rg := chi.NewRouter()
+	rg.Group(func(r chi.Router) {
+		r.Get("/", getTodo)
+		r.Post("/", addTodo)
+		r.Put("/{id}", updateTodo)
+		r.Delete("/{id}", deleteTodo)
+	})
+	return rg
+}
 
 func getTodo(w http.ResponseWriter, r *http.Request) {
 	todos := []todoModel{}
@@ -79,17 +89,6 @@ func getTodo(w http.ResponseWriter, r *http.Request) {
 	rnd.JSON(w, http.StatusOK, renderer.M{
 		"data": todoList,
 	})
-}
-
-func todoHandler() http.Handler {
-	rg := chi.NewRouter()
-	rg.Group(func(r chi.Router) {
-		r.Get("/", getTodo)
-		r.Post("/", addTodo)
-		r.Put("/{id}", updateTodo)
-		r.Delete("/{id}", deleteTodo)
-	})
-	return rg
 }
 
 func addTodo(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +121,7 @@ func addTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rnd.JSON(w, http.StatusOK, renderer.M{
+	rnd.JSON(w, http.StatusCreated, renderer.M{
 		"message": "todo created successfully",
 		"todo_id": tm.ID.Hex(),
 	})
